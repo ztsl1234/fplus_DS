@@ -19,8 +19,14 @@ class Queue:
 
     def pop_left(self):
         return self.container.popleft() #remove from left end
+    
+    def get(self,index):
+        return self.container[index]
+
+    def put(self,index,item):
+        self.container[index]=item
         
     def show(self):
-        logging.info(f"{self.container}")             
+        return list(self.container)       
         
     
