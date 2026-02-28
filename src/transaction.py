@@ -14,14 +14,14 @@ class ModeType(Enum):
     FIFO="FIFO"
     LIFO="LIFO"
 
-@dataclass
+@dataclass(frozen=True) #immutable
 class Transaction:
     operation: OperationType
     shares:int
     price: float
     mode: ModeType
     
-#load data from a list of tuple
+    #load data from a list of tuple
     @classmethod
     def load_from_tuple(cls, data:tuple) -> "Transaction":
         return cls(operation=OperationType(data[0].lower()),
@@ -30,10 +30,19 @@ class Transaction:
                 mode=ModeType(data[3].upper())
         )
 
+    #@classmethod
+    #def load_from_tuple_list(cls, data:list) -> list["Transaction"]:
+    #    return [cls.load_from_tuple(t) for t in data]
+
     @classmethod
     def load_from_tuple_list(cls, data:list) -> list["Transaction"]:
-        return [cls.load_from_tuple(t) for t in data]
-        
+        for item in data:
+            try:
+                yield cls.load_from_tuple(item) #generator - mem efficient, load one by one
+            except (ValueError, TypeError) as e:
+                logging.exception(f"skipping record {item} due to error :{e} " )
+                continue
+                
     @classmethod
     def load_from_csv(cls, file_path:str) -> list["Transaction"]:
         df=pd.read_csv(file_path)
@@ -43,12 +52,6 @@ class Transaction:
         return [ cls.load_from_dict(row) for row in df.to_dict('records')]
 
     @classmethod
-    def load_from_dict(cls, data:Dict[str,Any]) -> "Transaction":
-        return cls(operation=data["operation"],
-                shares=int(data["shares"]),
-                price=float(data["price"]),
-                model=data["mode"])
-    @classmethod
     def load(cls, source: Any,source_type: str) -> list["Transaction"]:
         match source_type:
             case "csv":
@@ -56,13 +59,17 @@ class Transaction:
             case "tuple_list":
                 return cls.load_from_tuple_list(source)
    
+    def __post_init__(self):
+        if self.shares <= 0:
+            raise ValueError("Shares must be a positive integer")
+
+        if self.price <= 0:
+            raise ValueError("Price must be a positive integer")
+
     def print(self):
         logging.info(self.operation)
         logging.info(self.shares)
         logging.info(self.price)
         logging.info(self.mode)
         logging.info("-----------------------")
-    
-    #validation            
-    #def __post_init__():
         
