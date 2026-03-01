@@ -3,30 +3,34 @@ import logging
 
 class Queue:
     def __init__(self):
-        self.container = deque() #double ended q, double linked list
+        #double ended q, double linked list
+        #o(1) time complexity for appends and pop on both ends
+        self.queue = deque() 
         
     def peek(self):
-        return self.container[-1] if self.container else None
+        return self.queue[-1] if self.queue else None
     
     def size(self):
-        return len(self.container)
+        return len(self.queue)
     
-    def append_right(self,val):
-        self.container.append(val) #append to right end
+    def append_right(self,item):
+        self.queue.append(item) #append to right end
         
     def pop_right(self):
-        return self.container.pop() #remove from right end
+        return self.queue.pop() #remove from right end
 
     def pop_left(self):
-        return self.container.popleft() #remove from left end
+        return self.queue.popleft() #remove from left end
     
     def get(self,index):
-        return self.container[index]
+        return self.queue[index]
 
     def put(self,index,item):
-        self.container[index]=item
+        self.queue[index]=item
+        
+    def to_list(self):
+        return list(self.queue)       
         
     def show(self):
-        return list(self.container)       
-        
+        print(f"Queue : {list(self.queue)}")       
     

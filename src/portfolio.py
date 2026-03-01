@@ -6,82 +6,79 @@ from src.queue import Queue
 MAX_TRANSACTIONS = 100000
 
 # Basic configuration to output to console
+logging.basicConfig
 logging.basicConfig(
     level=logging.INFO,
-    format='%(levelname)s: %(message)s'
+    format='%(asctime)s | %(levelname)s | %(messages)'
 )
-__all__ = ['simulate_portfolio']  # ONLY this will be exported
+
+logger=logging.getLogger(__name__)
+
+__all__ = ['simulate_portfolio']  # ONLY this method will be exported
 
 def simulate_portfolio(transactions: list[tuple[str, int, float, str]]) -> tuple[list[tuple[int, float]], float]:
     """
     Simulates a stock trading system with FIFO and LIFO modes.
     Returns the remaining inventory and total profit.
     """
-    if len(transactions)<1 :
+    row_count=len(transactions)
+    if row_count<1 :
         raise ValueError("There are no transactions to be loaded")
-    elif len(transactions) > MAX_TRANSACTIONS:
-        raise ValueError(f"Only {MAX_TRANSACTIONS} transactions can be loaded")
+    elif row_count > MAX_TRANSACTIONS:
+        raise ValueError(f"Exceeded limit of {MAX_TRANSACTIONS} transactions")
         
     trn_objs=Transaction.load(transactions,"tuple_list")
-    total_profit=0
-    order_queue=Queue()
+    total_profit=0.0
+    inventory=Queue()
     for trn in trn_objs:
         trn.print()
-        order_queue.show()     
+        inventory.show()     
 
         match trn.operation:
             case OperationType.BUY:
-                if trn.mode.value==ModeType.FIFO.value:
-                    order_queue.append_right((trn.shares, trn.price))
-                elif trn.mode.value==ModeType.LIFO.value:
-                    order_queue.append_right((trn.shares, trn.price))
+                inventory.append_right((trn.shares, trn.price))
             case OperationType.SELL:
-                sell_trn_remaining_shares=trn.shares
-                while sell_trn_remaining_shares != 0:
-                    logging.debug(trn.mode)
-                    logging.info(f"size={order_queue.size()}")
-                    if order_queue.size()==0:
-                        break
-                    
-                    if trn.mode.value==ModeType.FIFO.value:
-                        (buy_trn_shares,buy_trn_price)=order_queue.get(0)
-                    elif trn.mode.value==ModeType.LIFO.value:
-                        (buy_trn_shares,buy_trn_price)=order_queue.get(-1)
-                    
-                    #check b4 pop
-                    if buy_trn_shares <= sell_trn_remaining_shares:                        
-                        sell_trn_remaining_shares -= buy_trn_shares
-                        profit=(buy_trn_shares) * (trn.price - buy_trn_price)
-                        #pop!
-                        if trn.mode.value==ModeType.FIFO.value:
-                            (buy_trn_shares, buy_trn_price)=order_queue.pop_left()
-                        elif trn.mode.value==ModeType.LIFO.value:
-                            (buy_trn_shares, buy_trn_price)=order_queue.pop_right()            
-                        
-                    else: #partial - do not pop, just update
-                        buy_trn_remaining_shares = buy_trn_shares - sell_trn_remaining_shares
-                        profit=sell_trn_remaining_shares * (trn.price - buy_trn_price)
-                        sell_trn_remaining_shares=0
-                        buy_trn_shares=buy_trn_remaining_shares
-                        updated_buy_tuple=(buy_trn_remaining_shares,buy_trn_price)
-    
-                        if trn.mode.value==ModeType.FIFO.value:
-                            order_queue.put(0,updated_buy_tuple)
-                        elif trn.mode.value==ModeType.LIFO.value:
-                            order_queue.put(-1,updated_buy_tuple)
-                              
-                    logging.info(f"profit={profit}")              
-                    logging.info(f"total_profit={total_profit}")              
-                    total_profit += profit
+                total_profit=_sell_trn(trn,inventory)
             case _:
                 raise ValueError("Unsupported Operation Type")
 
-        order_queue.show()     
+        inventory.show()     
 
-    order_queue.show()     
+    return (inventory, total_profit)
 
-    return (order_queue, total_profit)
-  
+def _sell_trn(trn:Transaction, inventory: Queue) -> float:
+    total_profit=0.0
+    sell_trn_remaining_shares=trn.shares
+    while sell_trn_remaining_shares != 0:
+        if inventory.size()==0:
+            logger.error(f"Short Sell : Need {sell_trn_remaining_shares} more shares")
+            break
+        
+        index = 0 if trn.mode.value==ModeType.FIFO.value else -1
+        (buy_trn_shares,buy_trn_price)=inventory.get(index)
+        
+        #check b4 pop
+        if buy_trn_shares <= sell_trn_remaining_shares:                        
+            sell_trn_remaining_shares -= buy_trn_shares
+            profit=(buy_trn_shares) * (trn.price - buy_trn_price)
+            
+            inventory.pop_left() if trn.mode.value==ModeType.FIFO.value else inventory.pop_right()            
+            
+        else: #partial - do not pop, just update
+            buy_trn_remaining_shares = buy_trn_shares - sell_trn_remaining_shares
+            profit=sell_trn_remaining_shares * (trn.price - buy_trn_price)
+            sell_trn_remaining_shares=0
+            buy_trn_shares=buy_trn_remaining_shares
+            updated_buy_tuple=(buy_trn_remaining_shares,buy_trn_price)
+
+            inventory.put(index,updated_buy_tuple) 
+            
+        logging.info(f"profit={profit}")              
+        logging.info(f"total_profit={total_profit}")              
+        total_profit += profit
+
+    return total_profit
+    
 if __name__ == "__main__":
 
     transactions = [ ("buy", 100, 10.0, "FIFO"), 
